@@ -29,8 +29,6 @@ namespace Week01
         Texture2D texture;
         Color32[] colorBuffer;
 
-
-
         void Start()
         {
             // initialize our private objects
@@ -52,60 +50,62 @@ namespace Week01
             {
                 for (int j = 0; j < screenPixels; j++)
                 {
-                    // TODO
-                    // find appropriate pixel location in the space of the screen quad
-                    // (assumes quad is 1x1 units, with normal == local -z)
+                    // Find appropriate pixel location in the space of the screen quad
+                    // (Assumes quad is 1x1 units, with normal == local -z)
+                    var pixelPosition = screen.transform.position + new Vector3(step.x * i - 0.5f, step.y * j - 0.5f, 0);
 
-                    // TODO
-                    // create primary (from camera to scene, though pixel (i,j) ) ray 
+                    // Create primary ray (from camera to scene, though pixel (i,j))
+                    var position = camera.transform.position;
+                    var rayDirection = (pixelPosition - position).normalized;
+                    var primaryRay = new Ray(position, rayDirection);
 
-                    // TODO
-                    // send your ray to the IntersectionTest function
-                    colorBuffer[j * screenPixels + i] = (Color32) backgroundColor;// IntersectionTest(ray, maxBounces);
+                    // Send your ray to the IntersectionTest function
+                    var intersectionColor = IntersectionTest(primaryRay);
 
+                    // Set color buffer
+                    colorBuffer[j * screenPixels + i] = (Color32) intersectionColor;
                 }
             }
-            // set the material texture to our buffer
+            // Set the material texture to our buffer
             texture.SetPixels32(colorBuffer);
             texture.Apply();
         }
-
-
         
-        Color IntersectionTest(Ray ray, int bounces = 0) {
+        Color IntersectionTest(Ray ray, int bounces = 0)
+        {
             RaycastHit hit;
-            // we take advantage of the built in intersection test in Unity physics, so that we don't have to implement
-            // our own. The limitation is that this will only support simple geometry.
             if (Physics.Raycast(ray, out hit))
             {
-                // hit! Compute color for this intersection
                 Color color = ComputeLighting(hit.point, hit.normal);
+                
+                // Optional: Recursive Ray Tracing for reflections
+                if (bounces < maxBounces)
+                {
+                    var reflectionDir = Vector3.Reflect(ray.direction, hit.normal);
+                    var reflectionRay = new Ray(hit.point + hit.normal * 0.01f, reflectionDir);
+                    var reflectionColor = IntersectionTest(reflectionRay, bounces + 1);
+                    color = Color.Lerp(color, reflectionColor, reflectiveness);
+                }
 
-
-                // Optional feature: here you can implement recursive intersection test for rendering reflections, until bounces == 0
-
-                // draw the rays on the editor, to help you visualizing and debugging
                 if (drawDebugLines)
                     Debug.DrawLine(ray.origin, hit.point, color);
 
                 return color;
             }
-            // miss, return background color
             return backgroundColor;
         }
 
-
         Color ComputeLighting(Vector3 position, Vector3 normal)
         {
-            // Optional feature: shadows can be computer here. With ray tracing, we can use a shadow ray, that is,
-            // a ray from the intersection position towards the light. If the light is occluded by geometry,
-            // this means that this point is in shadow.
+            // Optional: Shadow Ray
+            var shadowRay = new Ray(position + normal * 0.01f, -lightSource.transform.forward);
+            if (Physics.Raycast(shadowRay))
+            {
+                return Color.black;  // Point is in shadow
+            }
 
-
-            // Light computation with diffuse and ambient contributions
-            float diffuseIntensity = Mathf.Max(0, Vector3.Dot(normal, -lightSource.transform.forward));
-            Color color = (diffuseIntensity * objectColor * lightSource.color);
-
+            var diffuseIntensity = Mathf.Max(0, Vector3.Dot(normal, -lightSource.transform.forward));
+            var color = (diffuseIntensity * objectColor * lightSource.color);
             return color;
         }
 
